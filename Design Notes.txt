@@ -1,0 +1,62 @@
+Design Goals:
+- Minimal amount of code needed to implement
+- Minimal amount of RAM needed for driver variables, buffering, etc.
+- Have a bootloader fit in 256 bytes that can boot a file from the root directory
+- Subdirectories
+- Floppies are second-class citizens
+
+Unless otherwise stated, all 16-bit values are little endian.
+A "block" is 512 bytes in size.
+This filesystem supports disks with a maximum size of 33,554,432 bytes (512 * 2^16).
+
+===============
+    Block 0
+===============
+$000-$1FF  - Bootloader, system data
+
+=============================================
+    Block 1-16 (Block Utilization Bitmap)
+=============================================
+Blocks 1 through 16 contain 65536 total bits. Each bit is mapped to a block.
+A bit set to 0 indicates that the block it represents is in use.
+  This should make "is a block free in this group of 8 blocks" checks boil down to just a 0 check.
+A bit set to 1 indicates that the block it represents is unused.
+
+
+=================================
+    Block 17 (Root Directory)
+=================================
+The root directory table of the filesystem.
+
+==================================
+    Block (Data and Directory)
+==================================
+$000-$001 - Link. Next contiguous 16-bit LBA for this file.
+  Special Values:
+    $0000 = Final block in file thread
+    $FFFF = Unused block
+$002-$1FF - Data
+
+=======================
+    Directory Table
+=======================
+$000-$001 - 16-bit LBA of next part of this directory
+$002-$00F - TBD
+$010-$1FF - 31 directory entries
+
+=======================
+    Directory Entry
+=======================
+$00-$07 - Filename (8 characters, space-padded)
+  Special values for first character:
+    $00 = Terminating entry in directory
+    $5A = Deleted entry
+$08-$0A - Extension (3 characters, space-padded)
+  Special values for first character:
+    $00 = Entry is a sub-directory
+$0B-$0C - 16-bit LBA of first block for file
+  Special values:
+    $0000 = null entry, no data
+$0D-$0E - Number of bytes used in final block
+$0F     - Flags?
+

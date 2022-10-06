@@ -120,12 +120,60 @@ function ttfs:create_file(dirlba, filename)
         local entryaddr = i * 16
 
         if block[entryaddr] == 0 then
-            for j = 1, 8 do
-                local c = string.sub(filename, j, j)
-                
+            local name, extension = string.match(filename, "([^.]*).(.*)")
+
+            -- Make sure the name is 8 characters
+            if string.len(name) < 8 then
+                name = string.format("%8s", name)
+            elseif string.len(name) > 8 then
+                name = string.sub(name, 1, 8)
             end
+
+            -- Extension is 3 characters
+            if string.len(extension) < 3 then
+                extension = string.format("%3s", extension)
+            elseif string.len(extension) > 3 then
+                extension = string.sub(extension, 1, 3)
+            end
+
+            -- Write out the file name to the entry
+            for j = 1, 8 do
+                block[entryaddr + (j-1)] = string.byte(string.sub(name, j, j))
+            end
+
+            -- Write out the file extension
+            for j = 1, 3 do
+                block[entryaddr + (j-1) + 8] = string.byte(string.sub(extension, j, j))
+            end
+
+            -- Get the first free block and assign it to this file
+            local freeblock = self:get_first_free_block()
+            self:set_block_free(freeblock, false)
+            block[entryaddr + 0xB] = freeblock & 0xff
+            block[entryaddr + 0xC] = freeblock >> 8
+
+            -- Write the block back to storage
+            self:block_write(dirlba, block)
+
+            return
         end
     end
+
+    local nextlba = block[0] + (block[1] * 256)
+
+    -- If we don't have an extension to this directory, create one
+    if nextlba == 0x0000 then
+        -- Get the next free block and claim it
+        nextlba = self:get_first_free_block()
+        self:set_block_free(nextlba, false)
+
+        -- Write this new block to this directory's link
+        block[0] = nextlba & 0xFF
+        block[1] = nextlba >> 8
+        self:block_write(dirlba, block)
+    end
+
+    self:create_file(nextlba, filename)
 end
 
 function ttfs:init()
